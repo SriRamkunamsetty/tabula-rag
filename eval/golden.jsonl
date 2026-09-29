@@ -1,0 +1,10 @@
+{"id": "q-surge", "query": "What does a Tower's Surge ability do?", "expected_answer": "captures every enemy Runner in a straight line of sight up to and including the third cell", "expects_abstain": false}
+{"id": "q-first-move", "query": "Who moves first in Hexfall?", "expected_answer": "Amber always moves first", "expects_abstain": false}
+{"id": "q-well", "query": "What happens when a stone enters the Well?", "expected_answer": "the stone becomes Sunk and is removed from the board immediately, taking no further part in the game", "expects_abstain": false}
+{"id": "q-runner-capture", "query": "Can a Runner capture a Tower?", "expected_answer": "a Runner may never capture a Tower, Runners may only capture Runners", "expects_abstain": false}
+{"id": "q-victory", "query": "How does a player win Hexfall?", "expected_answer": "a player wins immediately when their opponent has no Towers remaining on the board", "expects_abstain": false}
+{"id": "q-turn-limit", "query": "After how many moves without a winner is the game declared a draw?", "expected_answer": "a game that reaches move 60 without a winner is declared a draw", "expects_abstain": false}
+{"id": "q-board-colour", "query": "What colour is the Hexfall board?", "expected_answer": null, "expects_abstain": true}
+{"id": "q-prize", "query": "What is the official Hexfall tournament prize structure?", "expected_answer": null, "expects_abstain": true}
+{"id": "q-app-download", "query": "Where can I download the Hexfall mobile app?", "expected_answer": null, "expects_abstain": true}
+{"id": "q-leap", "query": "How far does a stone move during a Leap, and what happens to the jumped stone?", "expected_answer": "a Leap moves the stone two cells in a straight orthogonal line over one adjacent stone, and the jumped stone is not affected or removed unless it is an enemy stone being captured", "expects_abstain": false}

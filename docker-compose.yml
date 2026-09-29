@@ -1,0 +1,104 @@
+# Full stack on one AMD Instinct MI300X: a text-generation model, an
+# embedding model, and a reranker, all served by vLLM on ROCm, behind the
+# tabula-rag API. 192 GB HBM3 holds all three comfortably — a 14B-class
+# instruct model plus two small specialist models is nowhere near the
+# ceiling a single MI300X offers.
+#
+#   docker compose --profile gpu up          # full stack, needs ROCm + one MI300X
+#   docker compose up api                    # API only, point the three
+#                                             # TABULA_RAG_*_BASE_URL vars at
+#                                             # already-running endpoints
+
+services:
+  llm:
+    image: rocm/vllm:latest
+    profiles: ["gpu"]
+    command: >
+      --model ${TABULA_RAG_LLM_MODEL:-Qwen/Qwen2.5-14B-Instruct}
+      --host 0.0.0.0 --port 8000
+      --max-model-len 8192
+      --gpu-memory-utilization 0.55
+      --guided-decoding-backend xgrammar
+    devices: [/dev/kfd, /dev/dri]
+    group_add: [video]
+    ipc: host
+    shm_size: "16gb"
+    security_opt: [seccomp:unconfined]
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 180s
+
+  embeddings:
+    image: rocm/vllm:latest
+    profiles: ["gpu"]
+    command: >
+      --model ${TABULA_RAG_EMBEDDING_MODEL:-BAAI/bge-m3}
+      --host 0.0.0.0 --port 8001
+      --task embed
+      --gpu-memory-utilization 0.15
+    devices: [/dev/kfd, /dev/dri]
+    group_add: [video]
+    ipc: host
+    shm_size: "8gb"
+    security_opt: [seccomp:unconfined]
+    ports: ["8001:8001"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  reranker:
+    image: rocm/vllm:latest
+    profiles: ["gpu"]
+    command: >
+      --model ${TABULA_RAG_RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+      --host 0.0.0.0 --port 8002
+      --task score
+      --gpu-memory-utilization 0.15
+    devices: [/dev/kfd, /dev/dri]
+    group_add: [video]
+    ipc: host
+    shm_size: "8gb"
+    security_opt: [seccomp:unconfined]
+    ports: ["8002:8002"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  api:
+    build: .
+    ports: ["8090:8090"]
+    environment:
+      TABULA_RAG_LLM_BASE_URL: "http://llm:8000/v1"
+      TABULA_RAG_LLM_MODEL: "${TABULA_RAG_LLM_MODEL:-Qwen/Qwen2.5-14B-Instruct}"
+      TABULA_RAG_EMBEDDING_BASE_URL: "http://embeddings:8001/v1"
+      TABULA_RAG_EMBEDDING_MODEL: "${TABULA_RAG_EMBEDDING_MODEL:-BAAI/bge-m3}"
+      TABULA_RAG_RERANKER_BASE_URL: "http://reranker:8002/v1"
+      TABULA_RAG_RERANKER_MODEL: "${TABULA_RAG_RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}"
+      TABULA_RAG_GPU_HOURLY_RATE_USD: "${TABULA_RAG_GPU_HOURLY_RATE_USD:-1.99}"
+      TABULA_RAG_LOG_LEVEL: "${TABULA_RAG_LOG_LEVEL:-INFO}"
+    depends_on:
+      llm: {condition: service_healthy, required: false}
+      embeddings: {condition: service_healthy, required: false}
+      reranker: {condition: service_healthy, required: false}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8090/healthz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["observability"]
+    volumes: ["./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9091:9090"]
+    depends_on: [api]

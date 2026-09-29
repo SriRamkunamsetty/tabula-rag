@@ -1,0 +1,17 @@
+[
+  {
+    "mode": "harness-only (no GPU)",
+    "llm_model": "Qwen/Qwen2.5-14B-Instruct",
+    "requests": 60,
+    "concurrency": 12,
+    "p50_ms": 0.85,
+    "p95_ms": 0.92,
+    "p99_ms": 0.93,
+    "mean_ms": 0.85,
+    "throughput_req_s": 1150.253,
+    "total_tokens": 15360,
+    "tokens_per_s": 294464.79,
+    "error_rate": 0.0,
+    "cost_per_1k_queries_usd": 0.0005
+  }
+]
