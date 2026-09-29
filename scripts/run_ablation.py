@@ -74,37 +74,61 @@ WRONG_GUESSES = {
 UNANSWERABLE_IDS = {"q-board-colour", "q-prize", "q-app-download"}
 
 
-def build_scripted_responses(prompt_version: str, cases: list[EvalCase], corpus: CorpusIndex | None) -> list[str]:
+def build_scripted_responses(
+    prompt_version: str, cases: list[EvalCase], corpus: CorpusIndex | None
+) -> list[str]:
     """Script one response per case, matching the failure mode described above."""
     responses = []
     for case in cases:
         if case.case_id in UNANSWERABLE_IDS:
-            responses.append(json.dumps({
-                "claims": [], "abstained": True,
-                "abstain_reason": "Not stated anywhere in the retrieved material.",
-            }))
+            responses.append(
+                json.dumps(
+                    {
+                        "claims": [],
+                        "abstained": True,
+                        "abstain_reason": "Not stated anywhere in the retrieved material.",
+                    }
+                )
+            )
             continue
 
         if prompt_version == "no-retrieval":
             text = WRONG_GUESSES[case.case_id]
-            responses.append(json.dumps({
-                "claims": [{"text": text, "cited_chunk_ids": []}],
-                "abstained": False, "abstain_reason": None,
-            }))
+            responses.append(
+                json.dumps(
+                    {
+                        "claims": [{"text": text, "cited_chunk_ids": []}],
+                        "abstained": False,
+                        "abstain_reason": None,
+                    }
+                )
+            )
         elif prompt_version == "naive":
             text = CORRECT_TEXT[case.case_id]
-            responses.append(json.dumps({
-                "claims": [{"text": text, "cited_chunk_ids": []}],  # correct, but uncited
-                "abstained": False, "abstain_reason": None,
-            }))
+            responses.append(
+                json.dumps(
+                    {
+                        "claims": [
+                            {"text": text, "cited_chunk_ids": []}
+                        ],  # correct, but uncited
+                        "abstained": False,
+                        "abstain_reason": None,
+                    }
+                )
+            )
         else:  # cited
             text = CORRECT_TEXT[case.case_id]
             assert corpus is not None
             chunk_id = _find_chunk_for(corpus, case.case_id)
-            responses.append(json.dumps({
-                "claims": [{"text": text, "cited_chunk_ids": [chunk_id]}],
-                "abstained": False, "abstain_reason": None,
-            }))
+            responses.append(
+                json.dumps(
+                    {
+                        "claims": [{"text": text, "cited_chunk_ids": [chunk_id]}],
+                        "abstained": False,
+                        "abstain_reason": None,
+                    }
+                )
+            )
     return responses
 
 
@@ -138,12 +162,17 @@ async def main() -> None:
         embeddings = HashingEmbeddingClient()
         probe_corpus = CorpusIndex(settings, embeddings)
         await probe_corpus.ingest("hexfall-rulebook", rulebook, title="Hexfall Rulebook")
-        responses = build_scripted_responses(version, cases, probe_corpus if version == "cited" else None)
+        responses = build_scripted_responses(
+            version, cases, probe_corpus if version == "cited" else None
+        )
 
         single = await run_suite(
-            cases, settings, [RunConfig(version)],
+            cases,
+            settings,
+            [RunConfig(version)],
             llm_factory=lambda r=responses: ScriptedLLM(r),
-            embeddings=HashingEmbeddingClient(), reranker=LexicalOverlapReranker(),
+            embeddings=HashingEmbeddingClient(),
+            reranker=LexicalOverlapReranker(),
             corpus_documents=[("hexfall-rulebook", rulebook, "Hexfall Rulebook")],
         )
         reports.extend(single)
@@ -162,7 +191,7 @@ async def main() -> None:
         )
 
     out = REPO_ROOT / "docs" / "rag_ablation.md"
-    out.write_text(_render_report(table, breakdown_lines))
+    out.write_text(_render_report(table, breakdown_lines), encoding="utf-8")
     print(f"\nwrote {out}")
 
 

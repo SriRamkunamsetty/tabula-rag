@@ -39,12 +39,19 @@ from tabula_rag.retrieval.reranker import LexicalOverlapReranker, OpenAICompatib
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RULEBOOK = (REPO_ROOT / "corpus" / "hexfall_rulebook_v1.md").read_text(encoding="utf-8")
 
-SCRIPTED_ANSWER = json.dumps({
-    "claims": [{"text": "A Tower's Surge captures every enemy Runner in a straight line "
-                         "of sight up to and including the third cell.",
-                "cited_chunk_ids": ["hexfall-rulebook::0005"]}],
-    "abstained": False, "abstain_reason": None,
-})
+SCRIPTED_ANSWER = json.dumps(
+    {
+        "claims": [
+            {
+                "text": "A Tower's Surge captures every enemy Runner in a straight line "
+                "of sight up to and including the third cell.",
+                "cited_chunk_ids": ["hexfall-rulebook::0005"],
+            }
+        ],
+        "abstained": False,
+        "abstain_reason": None,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,18 +118,27 @@ async def run_benchmark(
 
     tokens_per_s = tokens / wall_elapsed if wall_elapsed > 0 else 0.0
     cost_per_query = (
-        (settings.gpu_hourly_rate_usd / 3600.0) * (tokens / max(len(latencies), 1)) / max(tokens_per_s, 1e-9)
-    ) if tokens_per_s > 0 else 0.0
+        (
+            (settings.gpu_hourly_rate_usd / 3600.0)
+            * (tokens / max(len(latencies), 1))
+            / max(tokens_per_s, 1e-9)
+        )
+        if tokens_per_s > 0
+        else 0.0
+    )
 
     return BenchResult(
         mode="live-endpoints" if live else "harness-only (no GPU)",
-        llm_model=settings.llm_model, requests=total_requests, concurrency=concurrency,
+        llm_model=settings.llm_model,
+        requests=total_requests,
+        concurrency=concurrency,
         p50_ms=round(_percentile(latencies, 0.50), 2),
         p95_ms=round(_percentile(latencies, 0.95), 2),
         p99_ms=round(_percentile(latencies, 0.99), 2),
         mean_ms=round(statistics.fmean(latencies), 2),
         throughput_req_s=round(len(latencies) / wall_elapsed, 3) if wall_elapsed > 0 else 0.0,
-        total_tokens=tokens, tokens_per_s=round(tokens_per_s, 2),
+        total_tokens=tokens,
+        tokens_per_s=round(tokens_per_s, 2),
         error_rate=round(errors / total_requests, 4),
         cost_per_1k_queries_usd=round(cost_per_query * 1000, 4),
     )
@@ -146,12 +162,16 @@ def main() -> None:
 
     settings = get_settings()
     result = asyncio.run(
-        run_benchmark(settings, total_requests=args.requests, concurrency=args.concurrency, live=args.live)
+        run_benchmark(
+            settings, total_requests=args.requests, concurrency=args.concurrency, live=args.live
+        )
     )
     print(json.dumps(asdict(result), indent=2))
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    existing = json.loads(args.output.read_text(encoding="utf-8")) if args.output.exists() else []
+    existing = (
+        json.loads(args.output.read_text(encoding="utf-8")) if args.output.exists() else []
+    )
     existing.append(asdict(result))
     args.output.write_text(json.dumps(existing, indent=2), encoding="utf-8")
     print(f"\nappended to {args.output}")
