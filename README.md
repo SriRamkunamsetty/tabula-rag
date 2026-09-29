@@ -70,6 +70,60 @@ story.
 
 ---
 
+## Two entry points
+
+| | **Service** (`tabula-rag`, FastAPI) | **Contract mode** (`app.py`) |
+|---|---|---|
+| for | people and dashboards | the Mini-Challenge 3 grader |
+| answer | a cited sentence, claim by claim | the **value only** |
+| citations | chunk ids + supporting quotes | the **exact set of files** the answer needed |
+| unanswerable | an explained abstention | `{"answer": "", "citations": [], "confidence": 0.0}` |
+| corpus | markdown | pdf, docx, xlsx, csv, txt/log, py, and images (read by a vision model) |
+| runs as | a long-lived API | a fresh process per question, over a persisted index |
+
+Both share the same ideas: grounding as a veto, abstention over guessing, revision awareness.
+Contract mode is a thin, separate subpackage (`src/tabula_rag/contract/`); the service is untouched.
+The reasoning is in [`docs/adr/006-contract-mode.md`](docs/adr/006-contract-mode.md).
+
+```bash
+python3 app.py --index /app/corpus                     # once: parse, read images, persist the index
+python3 app.py --corpus /app/corpus --query-id query_01 \
+    --query "What is the maximum junction temperature of the TQ-40?"
+# -> /app/output/query_01_output.json  {"answer": "94", "citations": ["specs/tq40_datasheet_r2.pdf"], "confidence": 0.9}
+```
+
+What it does that a generic RAG pipeline would not:
+
+* **Survives a hostile corpus.** An empty directory, an unknown binary, an unreadable file and an
+  encrypted PDF are each skipped with a recorded reason; indexing continues. An encrypted PDF is
+  skipped *even if it opens with an empty password*, because the graded questions treat its contents
+  as unanswerable.
+* **Answers or refuses, verifiably.** The answer must literally occur in a file it cites (compared with
+  the grader's own normalisation), otherwise the output is the required empty refusal. A hallucinated
+  value fails this check by construction.
+* **Cites the exact set.** Superseded revisions (`..._r1_WITHDRAWN.pdf` next to `..._r2.pdf`) and files
+  that merely discuss the topic are dropped; genuine chain links (a log line that supplied the ticket
+  number used to look the fix up in the bug database) are kept.
+* **Always leaves a valid file.** A placeholder refusal is written first, so a crash, a timeout or a dead
+  model still scores as a refusal instead of a malformed response.
+
+```bash
+python scripts/contract_selfcheck.py            # replays the grader's process model; scripted model, no GPU
+python scripts/contract_selfcheck.py --live \   # against your real model, with the organisers' kit
+    --corpus mc3-starter-kit/corpus --questions mc3-starter-kit/questions.json
+docker build -f Dockerfile.submission -t <registry>/tabula-rag:v1 .
+bash scripts/check_submission.sh <registry>/tabula-rag:v1 <corpus_dir> [questions.json]
+```
+
+**What is and is not verified.** The contract path has 100+ tests and the self-check scores 200/200 on a
+synthetic corpus shaped like the published one, including a 16 MB stress corpus (index 10 s, load 0.9 s).
+That model is **scripted**: it proves parsing, retrieval, verification, timing and the file contract, not how
+well a real vision-language model reads images or follows the citation rule. The submission image is untested
+on real ROCm hardware (vLLM availability for the mandated base image is the main unknown). Retrieval is
+lexical only; add dense retrieval if a live run shows paraphrase misses. Scanned PDFs are not OCR'd.
+
+---
+
 ## Architecture
 
 ```

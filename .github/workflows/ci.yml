@@ -31,10 +31,10 @@ jobs:
         run: python -m pip install -e ".[dev]"
 
       - name: Ruff (lint)
-        run: ruff check src tests scripts benchmarks
+        run: ruff check src tests scripts benchmarks app.py
 
       - name: Ruff (format check)
-        run: ruff format --check src tests scripts benchmarks
+        run: ruff format --check src tests scripts benchmarks app.py
 
       - name: mypy (strict)
         run: mypy
@@ -54,6 +54,9 @@ jobs:
           python -m tabula_rag.cli demo | tee demo.out
           grep -q "ABSTAIN" demo.out    # unanswerable question must be refused
           grep -q "CONFLICT" demo.out   # rulebook/errata disagreement must be caught
+
+      - name: Contract-mode self-check (real subprocesses, real HTTP, scripted model)
+        run: python scripts/contract_selfcheck.py   # exits non-zero unless it scores full marks in time
 
   ablation-and-benchmark:
     name: RAG ablation + pipeline benchmark (no GPU)
@@ -85,6 +88,16 @@ jobs:
             docs/rag_ablation.md
             benchmarks/results.json
           retention-days: 30
+
+  submission-dockerfile-lint:
+    name: lint the ROCm submission Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile.submission
+          failure-threshold: error
 
   docker-build:
     name: build container image
